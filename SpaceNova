@@ -1,0 +1,149 @@
+using UnityEngine;
+using System.Collections;
+using UnityEngine.EventSystems;
+
+public class Movement : MonoBehaviour
+{
+    Rigidbody2D body;
+    public Animator animator;
+    private PlayerHealth playerhealth; //script for hasControl update
+    public Joystick joystick;
+    public GameObject frontOfShip;
+    [SerializeField] float moveForce;
+
+    public Vector3 shipVelocity; //passed on to bullet
+    public bool hasControl;
+    public bool isHoveringUI;
+    //Moving
+    float moveForceActive;
+    float horizontal;
+    float vertical;
+    float moveLimiter = 0.7f;
+    int numOfTouches; //test var
+    RuntimePlatform platform;
+
+    //Rotation
+    Vector3 mousePos;
+    Vector3 oldMousePos;
+    float pointAngle;
+    //[SerializeField] float speedFector = 2f; //rotation speed
+    float shipAngle;
+    float angleOffset;
+
+    public Camera cam;
+
+    bool explode = false;
+
+    void Start()
+    {
+        playerhealth = GetComponent<PlayerHealth>();
+        hasControl = true;
+
+        //Camera cam = GameObject.Find("CM vcam1").GetComponent<Camera>(); //defines camera
+        body = GetComponent<Rigidbody2D>();
+        moveForceActive = moveForce;
+        Debug.Log("Platform:" + Application.platform);
+        platform = Application.platform;
+    }
+
+    void Update()
+    {
+        hasControl = playerhealth.hasControl;
+        if (hasControl == true) //if not dead
+        {
+            // Input (PC and Mobile)
+            if (platform == RuntimePlatform.WindowsPlayer)
+            {
+            horizontal = Input.GetAxisRaw("Horizontal"); // -1 is left
+            vertical = Input.GetAxisRaw("Vertical"); // -1 is down
+            }
+            else
+            {
+                horizontal = joystick.Horizontal;
+                vertical = joystick.Vertical;
+            }
+
+            animator.SetFloat("speed", Mathf.Abs(horizontal) + Mathf.Abs(vertical)); //trigger for boost animation
+        }
+        else { return; } //Exits script if no control
+    }
+    void FixedUpdate()
+    {
+        shipVelocity = body.velocity; //velocity passed onto bullet
+
+        // Mouse input
+        if (platform == RuntimePlatform.WindowsPlayer)
+        {
+            mousePos = cam.ScreenToWorldPoint(Input.mousePosition);
+        }
+        else //mobile input
+        {
+            for (int i = 0; i < Input.touchCount; i++)
+            {
+                numOfTouches = Input.touchCount;
+                if (Input.touchCount == 1 && joystick.Horizontal == 0 && joystick.Vertical == 0) //touching screen
+                {
+                    mousePos = cam.ScreenToWorldPoint(Input.touches[i].position);
+                    oldMousePos = mousePos;
+                }
+                if (Input.touchCount > 1 && joystick.Horizontal != 0 || Input.touchCount > 1 && joystick.Vertical != 0) //touch screen and joystick
+                {
+                    mousePos = cam.ScreenToWorldPoint(Input.touches[1].position);
+                    oldMousePos = mousePos;
+                }
+            }
+        }
+        Debug.DrawLine(Vector3.zero, mousePos, Color.red);
+
+        pointAngle = (Mathf.Atan2(mousePos.y - transform.position.y, mousePos.x - transform.position.x) * Mathf.Rad2Deg);
+        shipAngle = (transform.eulerAngles.z); //this counts to 360
+        if (shipAngle > 180) //clamps 360° between -180 to 180
+        {
+            shipAngle -= 360;
+        }
+
+        //diagonal check
+        if (horizontal != 0 && vertical != 0)
+        {
+            // limit movement speed diagonally, so you move at 70% speed
+            horizontal *= moveLimiter;
+            vertical *= moveLimiter;
+        }
+
+        //ship movement
+        if (hasControl == true)
+        {
+            body.AddForce(new Vector2(horizontal * moveForceActive, vertical * moveForceActive)); //physics movement
+        }
+
+
+        //ship rotation
+        angleOffset = pointAngle - shipAngle;
+    
+
+        if (hasControl == true && EventSystem.current.currentSelectedGameObject == null)  //TESTING
+        { 
+            transform.Rotate(0, 0, angleOffset); 
+        } //has control portion now obsolete (script deleted on false)
+        //transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(0, 0, pointAngle), speedFector * Time.deltaTime);
+
+
+
+        //velocity clamp
+        if (shipVelocity.x < .1f && shipVelocity.x > -.1f && shipVelocity.y < .1f && shipVelocity.y > -.1f)
+        {
+            body.velocity = new Vector3(0, 0, 0);
+        }
+
+
+
+        //Ship movement
+        //body.AddForce(new Vector2(horizontal * moveForceActive, vertical * moveForceActive)); //physics movement
+        //need to slerp point angle and difference btwn ship and point angle
+        //body.Rotate(0f, 0f, pointAngle - shipAngle);
+        //transform.Rotate(axis.z, pointAngle);
+        //transform.rotation = Quaternion.Euler(0f, 0f, pointAngle);
+        //body.addrelativetorque (pointAngle - shipAngle);
+    }
+
+}
